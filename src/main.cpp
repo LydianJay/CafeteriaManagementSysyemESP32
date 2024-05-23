@@ -7,13 +7,18 @@
 
 // LiquidCrystal_I2C lcd(0x27,16,2);
 // LiquidCrystal_I2C lcd2(0x26,16,2);
-// File root;
+File root;
 
 
 constexpr uint8_t RST_PIN = 0;         
-constexpr uint8_t SS_PIN =  4;         
+constexpr uint8_t SS_PIN = 4;         
 
+constexpr uint8_t SD_MISO = 16;         
+constexpr uint8_t SD_MOSI = 17;      
+constexpr uint8_t SD_SCK = 2;
+constexpr uint8_t SD_SS =  5;          
 
+SPIClass SPIsd;
 
 
 MFRC522 rfid;  // Create MFRC522 instance
@@ -28,28 +33,30 @@ void printHex(byte *buffer, byte bufferSize) {
   }
 }
 void setup() {
+  
   Serial.begin(115200);
   SPI.begin(18, 19, 23, SS_PIN);
-  
-  // if (!SD.begin(5)) {
-  //   Serial.println("initialization failed!");
-  //   while (1);
-  // }
-  // if(SD.cardType() == CARD_NONE){
-  //   Serial.println("No SD card attached");
-  //   return;
-  // }
+  SPIsd.begin(SD_SCK, SD_MISO, SD_MOSI, SD_SS);
+ 
+  if (!SD.begin(SD_SS, SPIsd)) {
 
-  // Serial.print("SD Card Type: ");
-  // if(SD.cardType() == CARD_MMC){
-  //   Serial.println("MMC");
-  // } else if(SD.cardType() == CARD_SD){
-  //   Serial.println("SDSC");
-  // } else if(SD.cardType() == CARD_SDHC){
-  //   Serial.println("SDHC");
-  // } else {
-  //   Serial.println("UNKNOWN");
-  // }
+    Serial.println("initialization failed!");
+   
+  }
+  if(SD.cardType() == CARD_NONE){
+    Serial.println("No SD card attached");
+  }
+
+  Serial.print("SD Card Type: ");
+  if(SD.cardType() == CARD_MMC){
+    Serial.println("MMC");
+  } else if(SD.cardType() == CARD_SD){
+    Serial.println("SDSC");
+  } else if(SD.cardType() == CARD_SDHC){
+    Serial.println("SDHC");
+  } else {
+    Serial.println("UNKNOWN");
+  }
 
   // lcd.init();                      // initialize the lcd 
   // lcd.backlight();
@@ -66,7 +73,7 @@ void setup() {
   // root = SD.open("/");
   // printDirectory(root, 0);
 
-  rfid.PCD_Init(SS_PIN, RST_PIN); // Init MFRC522 
+  rfid.PCD_Init(SS_PIN, RST_PIN); 
   
   rfid.PCD_DumpVersionToSerial();
   Serial.println(' ');
