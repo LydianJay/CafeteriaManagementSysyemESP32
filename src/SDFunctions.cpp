@@ -44,36 +44,32 @@ void createDir(fs::FS &fs, const char * path){
   }
 }
 
-void readFile(fs::FS &fs, const char * path){
+bool readFile(fs::FS &fs, const char * path, uint8_t* buffer, size_t sz){
   Serial.printf("Reading file: %s\n", path);
 
   File file = fs.open(path);
   if(!file){
-    Serial.println("Failed to open file for reading");
-    return;
+    return false;
   }
 
-  Serial.print("Read from file: ");
-  while(file.available()){
-    Serial.write(file.read());
-  }
+  Serial.print("Contents: ");
+  Serial.println(file.readString());
+  file.readBytes((char*)buffer, sz);
   file.close();
+
+  return true;
 }
 
-void writeFile(fs::FS &fs, const char * path, const char * message){
-  Serial.printf("Writing file: %s\n", path);
+bool writeFile(fs::FS &fs, const char * path, uint8_t* buffer, size_t sz){
 
   File file = fs.open(path, FILE_WRITE);
   if(!file){
     Serial.println("Failed to open file for writing");
-    return;
+    return true;
   }
-  if(file.print(message)){
-    Serial.println("File written");
-  } else {
-    Serial.println("Write failed");
-  }
+  file.write(buffer, sz);
   file.close();
+  return false;
 }
 
 void appendFile(fs::FS &fs, const char * path, const char * message){
