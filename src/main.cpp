@@ -3,11 +3,27 @@
 #include <SPI.h>
 #include <MFRC522.h>
 #include "SDFunctions.h"
-
-
-// LiquidCrystal_I2C lcd(0x27,16,2);
-// LiquidCrystal_I2C lcd2(0x26,16,2);
+#include <Keypad.h>
+LiquidCrystal_I2C lcd(0x27,16,2);
+LiquidCrystal_I2C lcd2(0x26,16,2);
 File root;
+
+
+
+
+const byte ROWS = 4; //four rows
+const byte COLS = 4; //three columns
+char keys[ROWS][COLS] = {
+{'1','2','3', 'A'},
+{'4','5','6', 'B'},
+{'7','8','9', 'C'},
+{'*','0','#', 'D'}
+};
+// 27, 14, 12, 13
+byte rowPins[ROWS] = {26, 25, 33, 32}; //connect to the row pinouts of the kpd
+byte colPins[COLS] = {13, 12, 14, 27}; //connect to the column pinouts of the kpd
+Keypad kpd = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
+// KeyPadPinOut pinout = {32, 33, 25, 26, 27, 14, 12, 13};
 
 
 constexpr uint8_t RST_PIN = 0;         
@@ -35,6 +51,18 @@ void printHex(byte *buffer, byte bufferSize) {
 void setup() {
   
   Serial.begin(115200);
+  lcd.init();                      // initialize the lcd 
+  lcd.backlight();
+  lcd.clear();
+  lcd.setCursor(0,0);
+  lcd.print("LCD 1");
+
+  lcd2.init();                      // initialize the lcd 
+  lcd2.backlight();
+  lcd2.clear();
+  lcd2.setCursor(0,0);
+  lcd2.print("LCD 2");
+  
   SPI.begin(18, 19, 23, SS_PIN);
   SPIsd.begin(SD_SCK, SD_MISO, SD_MOSI, SD_SS);
  
@@ -58,17 +86,6 @@ void setup() {
     Serial.println("UNKNOWN");
   }
 
-  // lcd.init();                      // initialize the lcd 
-  // lcd.backlight();
-  // lcd.clear();
-  // lcd.setCursor(0,0);
-  // lcd.print("LCD 1");
-
-  // lcd2.init();                      // initialize the lcd 
-  // lcd2.backlight();
-  // lcd2.clear();
-  // lcd2.setCursor(0,0);
-  // lcd2.print("LCD 2");
   
   // root = SD.open("/");
   // printDirectory(root, 0);
@@ -77,7 +94,7 @@ void setup() {
   
   rfid.PCD_DumpVersionToSerial();
   Serial.println(' ');
-  
+
 }
 
 
@@ -85,6 +102,37 @@ void setup() {
 
 
 void loop() { 
+
+
+  if (kpd.getKeys())
+  {
+    String msg;
+    for (int i=0; i<LIST_MAX; i++)   // Scan the whole key list.
+    {
+        if ( kpd.key[i].stateChanged )   // Only find keys that have changed state.
+        {
+            switch (kpd.key[i].kstate) {  // Report active key state : IDLE, PRESSED, HOLD, or RELEASED
+                case PRESSED:
+                msg = " PRESSED.";
+            break;
+                case HOLD:
+                msg = " HOLD.";
+            break;
+                case RELEASED:
+                msg = " RELEASED.";
+            break;
+                case IDLE:
+                msg = " IDLE.";
+            }
+            // Serial.print("Key ");
+            // Serial.print(kpd.key[i].kchar);
+            // Serial.println(msg);
+        }
+    }
+  }
+
+
+  
 
    // Reset the loop if no new card present on the sensor/reader. This saves the entire process when idle.
   if ( ! rfid.PICC_IsNewCardPresent()) {
