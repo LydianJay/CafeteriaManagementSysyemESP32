@@ -52,6 +52,15 @@ void printHex(byte *buffer, byte bufferSize) {
     Serial.print(buffer[i], HEX);
   }
 }
+
+void resetPICC() {
+  for (size_t i = 0; i < 4; i++)
+  {
+    nuidPICC[i] = 0x0;
+  }
+  
+}
+
 void setup() {
   
   Serial.begin(115200);
@@ -65,7 +74,7 @@ void setup() {
   lcd2.backlight();
   lcd2.clear();
   lcd2.setCursor(0,0);
-  lcd2.print("LCD 2");
+  lcd2.print("Welcome");
   
   SPI.begin(18, 19, 23, SS_PIN);
   SPIsd.begin(SD_SCK, SD_MISO, SD_MOSI, SD_SS);
@@ -73,9 +82,17 @@ void setup() {
   if (!SD.begin(SD_SS, SPIsd)) {
 
     Serial.println("initialization failed!");
+
+    while (true) {
+      lcd.clear();
+      lcd.print("SD Card ERROR");
+      delay(1500);
+    }
+    
    
   }
   if(SD.cardType() == CARD_NONE){
+    lcd2.clear();
     Serial.println("No SD card attached");
   }
 
@@ -91,8 +108,10 @@ void setup() {
   }
 
   
-  root = SD.open("/");
-  printDirectory(root, 0);
+  // root = SD.open("/");
+  // printDirectory(root, 0);
+  uint8_t buffer[32];
+  readFile(SD, "/Database/1474385245.txt", buffer, 32);
 
   rfid.PCD_Init(SS_PIN, RST_PIN); 
   
@@ -111,7 +130,6 @@ void readRFID() {
     return;
   }
    
-  // Verify if the NUID has been readed
   if ( ! rfid.PICC_ReadCardSerial()){
     return;
   }
@@ -157,44 +175,6 @@ void readRFID() {
 
 
 
-String selection[4] = {"Cash In", "Pay"};
-
-
-
-void handleKeys() {
-
-
-  if (kpd.getKeys())
-  {
-    String msg;
-    for (int i=0; i < LIST_MAX; i++)   
-    {
-        if ( kpd.key[i].stateChanged )  
-        {
-            switch (kpd.key[i].kstate) {  
-                case PRESSED:
-
-                switch (kpd.key[i].kchar)
-                {
-                case '#':
-                  break;
-                
-                default:
-                  break;
-                }
-            break;
-            
-            }
-        }
-    }
-  }
-
-
-}
-
-
-
-
 
 
 // ============= Main Menu stuff =================
@@ -223,6 +203,10 @@ void displayMenu() {
     lcd.print("Cash In");
     lcd.setCursor(2, 1);
     lcd.print("Pay");
+
+    lcd2.clear();
+    lcd2.print("Welcome!");
+
     updateLCD = false;
   }
 
@@ -244,11 +228,11 @@ void responToMenuKeys() {
                   switch (kpd.key[i].kchar)
                   {
                   case '#': // select
-                      Serial.printf("Selected! %d %d \n", cursorPos, state);
+                      updateLCD = true;
                       if(cursorPos == 0)
                         state = 3;
-                      
-
+                      if(cursorPos == 1)
+                        state = PAY_SCREEN;
                     break;
                   
                   case 'A': // up
@@ -260,7 +244,7 @@ void responToMenuKeys() {
                   break;
 
                   case 'B': // down
-                    if(cursorPos < 1){
+                    if(cursorPos < 1) {
                       cursorPos++;
                       updateLCD = true;
                     }
@@ -288,8 +272,8 @@ void responToMenuKeys() {
 
 // ==================== Pay Screen =====================
 
-float totalAmmountToPay = 0;
-float lastState = 0;
+uint32_t totalAmmountToPay = 0;
+uint32_t lastState = 0;
 String ammount;
 bool scanState = false;
 
@@ -297,9 +281,16 @@ void payScreen() {
 
 
   if(updateLCD){
-    lcd.print("A: " + ammount);
+    lcd.clear();
+    lcd.print("Ammount");
     lcd.setCursor(0, 1);
-    lcd.print("T: " + String(totalAmmountToPay));
+    lcd.print(ammount);
+
+    lcd2.clear();
+    lcd2.print("To Pay:");
+    lcd2.setCursor(0, 1);
+    lcd2.print(ammount);
+    updateLCD = false;
   }
   
 
@@ -311,21 +302,25 @@ void payScreen() {
         if ( kpd.key[i].stateChanged && kpd.key[i].kstate == PRESSED)  
         {
           if(kpd.key[i].kchar >= '0' && kpd.key[i].kchar <= '9'){
+            if(ammount.isEmpty() && kpd.key[i].kchar == '0') {
+              continue;
+            }
             ammount += kpd.key[i].kchar;
             updateLCD = true;
           }
-          if(kpd.key[i].kchar == 'A'){
-            lastState = totalAmmountToPay;
-            totalAmmountToPay += ammount.toFloat();
-            updateLCD = true;
-          }
-          else if(kpd.key[i].kchar == 'B'){
-            lastState = totalAmmountToPay;
-            totalAmmountToPay = lastState;
-            updateLCD = true;
-          }
+          // if(kpd.key[i].kchar == 'A'){
+          //   lastState = totalAmmountToPay;
+          //   totalAmmountToPay += ammount.toInt();
+          //   updateLCD = true;
+          // }
+          // else if(kpd.key[i].kchar == 'B'){
+          //   lastState = totalAmmountToPay;
+          //   totalAmmountToPay = lastState;
+          //   updateLCD = true;
+          // }
           else if(kpd.key[i].kchar == '#'){
             scanState = true;
+            updateLCD = true;
           }
         }
     }
@@ -334,9 +329,90 @@ void payScreen() {
 
 
 void scanScreen() {
+  strRFID = "";
   lcd2.clear();
-  lcd2.println("Please Swipe");
-  lcd2.println("BAL:" + String(totalAmmountToPay));
+  
+  lcd2.print("To Pay:" + String(ammount));
+  delay(5000);
+  uint64_t timer = millis() + 15000; // 15 second timer
+
+  while (strRFID.isEmpty() && timer > millis()) {
+    readRFID();
+    lcd2.clear();
+    lcd2.print("Swipe When Ready");
+    lcd2.setCursor(0,1);
+    lcd2.print("Time: " + String( (timer - millis()) / 1000) + "s");
+    delay(250);
+  }
+
+  if(strRFID.isEmpty()) {
+    lcd2.clear();
+    lcd2.print("Error");
+    lcd2.setCursor(0,1);
+    lcd2.print("No ID Detected");
+    state = 1;
+    delay(3500);
+  }
+  else {
+
+
+    
+      String filePath = "/Database/" + strRFID + ".txt";
+      uint8_t buffer[32];
+      memset(buffer, 0, 32);
+
+      if(readFile(SD, filePath.c_str(), buffer, 32)){
+
+
+        if(String((char*)buffer).toInt() < ammount.toInt()){
+
+          lcd2.clear();
+          lcd2.print("Not Enough");
+          lcd2.setCursor(0,1);
+          lcd2.print("Balance");
+          state = 1;
+          ammount = "";
+          scanState = false; 
+          updateLCD = true;
+          resetPICC();
+          delay(5000);
+          
+          return;
+        }
+        else {
+          int bal = String((char*)buffer).toInt() - ammount.toInt();
+          Serial.printf("To be written: %s \n", String(bal).c_str());
+          Serial.printf("Read: %s \n", buffer);
+          String strBal = String(bal);
+          writeFile(SD, filePath.c_str(), strBal);
+          lcd2.clear();
+          lcd2.print("Bal: " + strBal);
+          lcd2.setCursor(0,1);
+          lcd2.print("Success!");
+          state = 1;
+          updateLCD = true;
+          delay(5000);
+        }
+
+        
+      }
+      else {
+        
+        state = 1;
+        updateLCD = true;
+        lcd2.clear();
+        lcd2.print("Unregistered");
+        lcd2.setCursor(0,1);
+        lcd2.print("User Detected!");
+        delay(5000);
+      }
+
+
+
+  }
+  ammount = "";
+  scanState = false; 
+  resetPICC();
 }
 
 // ====================================================
@@ -380,31 +456,83 @@ void displayCashInScreen() {
             updateLCD = true;
           }
           else if(kpd.key[i].kchar == '#') {
+
+            if(ammountCashIn.toInt() <= 0 || ammountCashIn.isEmpty()) {
+              lcd2.clear();
+              lcd2.print("Invalid Value");
+              lcd.clear();
+              lcd.print("Invalid Value");
+              delay(3500);
+              resetPICC();
+              updateLCD = true;
+              ammountCashIn = "";
+              return;
+            }
+
+
             lcd2.clear();
             lcd2.println("Swipe When Ready");
             
-            while (strRFID.isEmpty()) {
+            uint64_t timer = millis() + 15000; // 15 second timer
+
+            while (strRFID.isEmpty() && timer > millis()) {
               
               readRFID();
-
+              lcd2.clear();
+              lcd2.print("Swipe When Ready");
+              lcd2.setCursor(0,1);
+              lcd2.print("Time: " + String( (timer - millis()) / 1000) + "s");
+              delay(250);
             }
             
 
-            String filePath = "/" + strRFID + ".txt";
-            uint8_t buffer[32];
-            memset(buffer, 0, 32);
 
-            if(readFile(SD, filePath.c_str(), buffer, 32)){
-              int bal = String((char*)buffer).toInt() + ammountToCashIn;
-              writeFile(SD, filePath.c_str(), (uint8_t*)String(bal).c_str(), 32);
-            }
-            else {
-              writeFile(SD, filePath.c_str(), (uint8_t*)String(ammountToCashIn).c_str(), 32);
+            if(strRFID.isEmpty()) {
+              lcd2.clear();
+              lcd2.print("Error");
+              lcd2.setCursor(0,1);
+              lcd2.print("No ID Detected");
               state = 1;
               updateLCD = true;
+              delay(3000);
             }
+            else {
+              
 
+              String filePath = "/Database/" + strRFID + ".txt";
+              uint8_t buffer[32];
+              memset(buffer, 0, 32);
 
+              if(readFile(SD, filePath.c_str(), buffer, 32)){
+                int bal = String((char*)buffer).toInt() + ammountCashIn.toInt();
+                Serial.printf("To be written: %s \n", String(bal).c_str());
+                Serial.printf("Read: %s \n", buffer);
+                String strBal = String(bal);
+                writeFile(SD, filePath.c_str(), strBal);
+                lcd2.clear();
+                lcd2.print("Bal: " + strBal);
+                lcd2.setCursor(0,1);
+                lcd2.print("Success!");
+                state = 1;
+                updateLCD = true;
+                delay(5000);
+              }
+              else {
+                Serial.printf("To be written: %s \n", ammountCashIn.c_str());
+                writeFile(SD, filePath.c_str(), ammountCashIn);
+                state = 1;
+                updateLCD = true;
+                lcd2.clear();
+                lcd2.print("Bal: " + ammountCashIn);
+                lcd2.setCursor(0,1);
+                lcd2.print("Success!");
+                delay(5000);
+              }
+              resetPICC();
+            }
+            
+            resetPICC();
+            ammountCashIn = "";
           }
         }
     }

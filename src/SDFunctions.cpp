@@ -54,22 +54,24 @@ bool readFile(fs::FS &fs, const char * path, uint8_t* buffer, size_t sz){
 
   Serial.print("Contents: ");
   Serial.println(file.readString());
+  file.seek(0);
   file.readBytes((char*)buffer, sz);
   file.close();
 
   return true;
 }
 
-bool writeFile(fs::FS &fs, const char * path, uint8_t* buffer, size_t sz){
+bool writeFile(fs::FS &fs, const char * path, String& buffer){
 
   File file = fs.open(path, FILE_WRITE);
   if(!file){
     Serial.println("Failed to open file for writing");
-    return true;
+    return false;
   }
-  file.write(buffer, sz);
+  file.print(buffer);
   file.close();
-  return false;
+  Serial.printf("[File Written] Data:%s \n", buffer);
+  return true;
 }
 
 void appendFile(fs::FS &fs, const char * path, const char * message){
