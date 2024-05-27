@@ -183,7 +183,7 @@ void readRFID() {
 #define MAIN_MENU 1
 #define PAY_SCREEN 2
 #define CASH_IN 3
-
+#define BALANCE 4
 
 
 int state = 1;
@@ -197,12 +197,25 @@ void displayMenu() {
 
   if(updateLCD){
     lcd.clear();
-    lcd.setCursor(0, cursorPos);
-    lcd.print("->");
-    lcd.setCursor(2, 0);
-    lcd.print("Cash In");
-    lcd.setCursor(2, 1);
-    lcd.print("Pay");
+
+    if (cursorPos >= 2){
+      lcd.setCursor(0,1);
+      lcd.print("->");
+      lcd.setCursor(2, 0);
+      lcd.print("Pay");
+      lcd.setCursor(2, 1);
+      lcd.print("Balance");
+    }
+    else {
+      lcd.setCursor(0, cursorPos);
+      lcd.print("->");
+      lcd.setCursor(2, 0);
+      lcd.print("Cash In");
+      lcd.setCursor(2, 1);
+      lcd.print("Pay");
+    }
+    
+  
 
     lcd2.clear();
     lcd2.print("Welcome!");
@@ -233,6 +246,9 @@ void responToMenuKeys() {
                         state = 3;
                       if(cursorPos == 1)
                         state = PAY_SCREEN;
+                      if(cursorPos == 2)
+                        state = BALANCE;
+
                     break;
                   
                   case 'A': // up
@@ -244,7 +260,7 @@ void responToMenuKeys() {
                   break;
 
                   case 'B': // down
-                    if(cursorPos < 1) {
+                    if(cursorPos < 2) {
                       cursorPos++;
                       updateLCD = true;
                     }
@@ -545,6 +561,75 @@ void displayCashInScreen() {
 // ===============================================
 
 
+
+void displayBalance() {
+
+  lcd.clear();
+  lcd2.clear();
+
+  lcd.print("Waiting swipe");
+  strRFID = "";
+  
+
+  uint64_t timer = millis() + 15000; // 15 second timer
+
+    while (strRFID.isEmpty() && timer > millis()) {
+      
+      readRFID();
+      lcd2.clear();
+      lcd2.print("Swipe When Ready");
+      lcd2.setCursor(0,1);
+      lcd2.print("Time: " + String( (timer - millis()) / 1000) + "s");
+      delay(250);
+    }
+
+
+
+    if(strRFID.isEmpty()) {
+      lcd2.clear();
+      lcd2.print("Error");
+      lcd2.setCursor(0,1);
+      lcd2.print("No ID Detected");
+      state = 1;
+      updateLCD = true;
+      delay(3500);
+    }
+    else {
+      
+
+      String filePath = "/Database/" + strRFID + ".txt";
+      uint8_t buffer[32];
+      memset(buffer, 0, 32);
+
+      if(readFile(SD, filePath.c_str(), buffer, 32)){
+
+        
+        lcd2.clear();
+        lcd2.print("Bal: " + String((char*)buffer));
+        
+        state = 1;
+        updateLCD = true;
+        delay(6000);
+      }
+      else {
+        state = 1;
+        updateLCD = true;
+        lcd2.clear();
+        lcd2.print("Unregistered");
+        lcd2.setCursor(0,1);
+        lcd2.print("User Detected");
+        delay(5000);
+      }
+      
+    }
+
+
+  resetPICC();
+}
+
+//
+
+
 void loop() { 
 
 
@@ -569,6 +654,10 @@ void loop() {
       displayCashInScreen();
     break;
 
+
+    case BALANCE:
+      displayBalance();
+    break;
   
   default:
     break;
