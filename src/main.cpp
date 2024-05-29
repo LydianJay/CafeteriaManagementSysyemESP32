@@ -6,24 +6,24 @@
 #include <Keypad.h>
 LiquidCrystal_I2C lcd(0x27,16,2);
 LiquidCrystal_I2C lcd2(0x26,16,2);
-File root;
 
 
 
 
-const byte ROWS = 4; //four rows
-const byte COLS = 4; //three columns
-char keys[ROWS][COLS] = {
-{'1','2','3', 'A'},
-{'4','5','6', 'B'},
-{'7','8','9', 'C'},
-{'*','0','#', 'D'}
-};
+const byte ROWS = 4; 
+const byte COLS = 4; 
+char keys[ROWS][COLS] = 
+  {
+    {'1','2','3', 'A'},
+    {'4','5','6', 'B'},
+    {'7','8','9', 'C'},
+    {'*','0','#', 'D'}
+  };
 // 27, 14, 12, 13
-byte rowPins[ROWS] = {26, 25, 33, 32}; //connect to the row pinouts of the kpd
-byte colPins[COLS] = {13, 12, 14, 27}; //connect to the column pinouts of the kpd
+byte rowPins[ROWS] = {26, 25, 33, 32}; 
+byte colPins[COLS] = {13, 12, 14, 27}; 
 Keypad kpd = Keypad( makeKeymap(keys), rowPins, colPins, ROWS, COLS );
-// KeyPadPinOut pinout = {32, 33, 25, 26, 27, 14, 12, 13};
+//  pinout = {32, 33, 25, 26, 27, 14, 12, 13};
 
 
 uint8_t cursorPos = 0;
@@ -31,6 +31,8 @@ uint8_t cursorPos = 0;
 constexpr uint8_t RST_PIN = 0;         
 constexpr uint8_t SS_PIN = 4;         
 
+
+//Separate SPI Connection for SD Card
 constexpr uint8_t SD_MISO = 16;         
 constexpr uint8_t SD_MOSI = 17;      
 constexpr uint8_t SD_SCK = 2;
@@ -41,7 +43,7 @@ constexpr uint8_t SD_SS =  5;
 SPIClass SPIsd;
 
 
-MFRC522 rfid;  // Create MFRC522 instance
+MFRC522 rfid; 
 MFRC522::MIFARE_Key key; 
 byte nuidPICC[4] = {0x0, 0x0, 0x0, 0x0};
 String strRFID = "";
@@ -92,7 +94,6 @@ void setup() {
    
   }
   if(SD.cardType() == CARD_NONE){
-    lcd2.clear();
     Serial.println("No SD card attached");
   }
 
@@ -324,16 +325,7 @@ void payScreen() {
             ammount += kpd.key[i].kchar;
             updateLCD = true;
           }
-          // if(kpd.key[i].kchar == 'A'){
-          //   lastState = totalAmmountToPay;
-          //   totalAmmountToPay += ammount.toInt();
-          //   updateLCD = true;
-          // }
-          // else if(kpd.key[i].kchar == 'B'){
-          //   lastState = totalAmmountToPay;
-          //   totalAmmountToPay = lastState;
-          //   updateLCD = true;
-          // }
+        
           else if(kpd.key[i].kchar == '#'){
             scanState = true;
             updateLCD = true;
@@ -626,9 +618,6 @@ void displayBalance() {
 
   resetPICC();
 }
-
-//
-
 
 void loop() { 
 
